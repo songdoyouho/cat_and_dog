@@ -169,7 +169,7 @@ x_test, label_x = load_test_imgs()
 x_test = x_test.astype('float32') / 255.
 
 y_pred = model.predict(x_test)
-#y_pred = y_pred.clip(min=0.005, max=0.995)
+y_pred = y_pred.clip(min=0.005, max=0.995)
 print(y_pred[:10])
 
 #整理output csv file
@@ -190,4 +190,4 @@ def saveResult(result):
             writer.writerow([result[i]["label"], result[i]["y_pred"][0]])
 
 saveResult(array)
-print("original structure without clip")
+print("original structure with clip")
