@@ -8,8 +8,8 @@ from keras.callbacks import LearningRateScheduler, ModelCheckpoint
 np.set_printoptions(suppress=True)
 # 參數設定------------------------------------------------------------------------------------
 map_characters = {0: 'cat', 1: 'dog'}
-img_width = 64 
-img_height = 64
+img_width = 224 
+img_height = 224
 num_classes = len(map_characters) # 要辨識的種類
 test_size = 0.1
 train_imgsPath = "train"
@@ -23,6 +23,7 @@ def load_pictures():
     for k, v in map_characters.items(): # k: 數字編碼 v: label
         # 把所有圖像檔的路徑捉出來
         pictures = [k for k in glob.glob(train_imgsPath + "/" + v + "/*")]       
+        pictures = pictures[:int(len(pictures)/2)]
         print(v + " : " + str(len(pictures))) # 看一下各有多少訓練圖像
         for i, pic in enumerate(pictures):
             #print(pic)
@@ -80,9 +81,34 @@ def get_dataset(save=False, load=False):
 # 取得訓練資料集與驗證資料集  
 x_train, x_val, y_train, y_val = get_dataset()
 
-from keras.models import Sequential  
+from keras.models import Sequential,Input,Model  
 from keras.layers import Dense,Dropout,Flatten,Conv2D,MaxPool2D,Activation,BatchNormalization
+from keras.optimizers import SGD, RMSprop
+from keras.applications.resnet50 import ResNet50
+from keras.callbacks import ReduceLROnPlateau
 
+#reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=7, min_lr=0.0000001, verbose=1)
+
+opt = SGD(lr=0.0001, momentum=0.9)
+#opt = RMSprop(lr=0.001, rho=0.9)
+myinput = Input(shape=(224, 224, 3))
+base_model = ResNet50(weights='imagenet', input_tensor=myinput, include_top=False)
+x = Flatten()(base_model.output)
+x = Dense(1024, activation='relu')(x)
+x = Dropout(0.5)(x)
+predictions = Dense(1, activation='sigmoid')(x)
+# this is the model we will train
+model = Model(myinput, predictions)
+model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+best_model = ModelCheckpoint('model_best.h5', verbose=1, save_best_only=True)
+train_history = model.fit(x_train, y_train, validation_data=(x_val,y_val), shuffle=True, batch_size=16, epochs=100, callbacks=[best_model], verbose=2)
+model.save('model_100.h5')
+
+x_train = []
+y_train = []
+x_val = []
+y_val = []
+'''
 model = Sequential()
 
 model.add(Conv2D(32, kernel_size=(5, 5), input_shape=(64, 64, 3), activation='relu', padding='same'))
@@ -120,6 +146,7 @@ train_history = model.fit(x=x_train, y=y_train,
                           shuffle=True,
                           callbacks=[ModelCheckpoint('model.h5', save_best_only=True)], # 儲存最好的 model 來做 testing
                           verbose=2)
+'''
 
 def plot_train_history(history, train_metrics, val_metrics):
     plt.plot(history.history.get(train_metrics),'-o')                              
@@ -142,7 +169,7 @@ def show_train_and_val_result():
 
 show_train_and_val_result()
 
-model = load_model('model.h5')
+#model = load_model('model.h5')
 # testing
 test_imgsPath = 'test'
 test_imgs = os.listdir(test_imgsPath)
@@ -190,4 +217,4 @@ def saveResult(result):
             writer.writerow([result[i]["label"], result[i]["y_pred"][0]])
 
 saveResult(array)
-print("original structure with clip")
+print("ResNet50 with clip and half training data sgd momentum")
